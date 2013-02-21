@@ -14,9 +14,27 @@ func (e Error) Error() string {
 
 type Packet struct {
 	Id      uint64
-	Time    uint64
-	Count   uint32
+	Time    int64 //Nanosecond timestamp
+	Count   int32
 	Payload []byte
+}
+
+func (p Packet) Bytes() ([]byte, error) {
+	b := make([]byte, 8+8+4+len(p.Payload))
+	buff := bytes.NewBuffer(b)
+	if err := binary.Write(buff, binary.LittleEndian, p.Id); err != nil {
+		return b, err
+	}
+	if err := binary.Write(buff, binary.LittleEndian, p.Time); err != nil {
+		return b, err
+	}
+	if err := binary.Write(buff, binary.LittleEndian, p.Count); err != nil {
+		return b, err
+	}
+	if err := binary.Write(buff, binary.LittleEndian, p.Payload); err != nil {
+		return b, err
+	}
+	return b, nil
 }
 
 func ParsePacket(b []byte, n int) (p Packet, err error) {

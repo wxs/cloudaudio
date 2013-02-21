@@ -36,20 +36,12 @@ func main() {
 
 func configureHTTP() {
 	http.HandleFunc("/connect", func(response http.ResponseWriter, request *http.Request) {
-		type SessionInfo struct {
-			Host     string
-			Port     int
-			Sessid   string
-			MaxBytes int
-			audio    cloudaudio.AudioInfo
-		}
 		s := store.NewSession()
-		var m = SessionInfo{}
-		m.Host = "127.0.0.1"
+		var m = cloudaudio.SessionInfo{}
+		m.IP = "127.0.0.1"
 		m.Port = *dataport
-		m.Sessid = s.HexId()
-		m.MaxBytes = 1024
-		m.audio = s.AudioInfo
+		m.Sessid = s.Id
+		m.AudioInfo = s.AudioInfo
 		b, err := json.Marshal(m)
 		if err != nil {
 			http.Error(response, err.Error(), http.StatusInternalServerError)

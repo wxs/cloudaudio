@@ -3,7 +3,6 @@ package cloudaudio
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"fmt"
 	"log"
 	"sync"
 )
@@ -71,9 +70,9 @@ func genSessId() uint64 {
 }
 
 type AudioInfo struct {
-	sampleRate    int
-	bitsPerSample int
-	channels      int
+	SampleRate     int
+	BytesPerSample int
+	Channels       int
 }
 
 type Session struct {
@@ -81,6 +80,11 @@ type Session struct {
 	AudioInfo AudioInfo
 }
 
-func (s Session) HexId() string {
-	return fmt.Sprintf("%016x", s.Id)
+// This type is used to communicate the important
+// information about a session in the signalling server
+type SessionInfo struct {
+	IP        string
+	Port      int
+	Sessid    uint64
+	AudioInfo AudioInfo
 }
