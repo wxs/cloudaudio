@@ -3,7 +3,7 @@ package cloudaudio
 import (
 	"bytes"
 	"encoding/binary"
-	"io/ioutil"
+	"fmt"
 )
 
 type Error string
@@ -16,51 +16,59 @@ type Packet struct {
 	Id      uint64
 	Time    int64 //Nanosecond timestamp
 	Count   int32
+	Size    int32
 	Payload []byte
 }
 
+func (p Packet) String() string {
+	return fmt.Sprintf("Packet {Id: %d, Time: %d, Count: %d, Payload: %d bytes}",
+		p.Id,
+		p.Time,
+		p.Count,
+		p.Size)
+}
+
 func (p Packet) Bytes() ([]byte, error) {
-	b := make([]byte, 8+8+4+len(p.Payload))
-	buff := bytes.NewBuffer(b)
-	if err := binary.Write(buff, binary.LittleEndian, p.Id); err != nil {
-		return b, err
+	var buf bytes.Buffer
+	var metadata = []interface{}{p.Id, p.Time, p.Count, p.Size, p.Payload}
+	for _, v := range metadata {
+		if err := binary.Write(&buf, binary.LittleEndian, v); err != nil {
+			return nil, err
+		}
 	}
-	if err := binary.Write(buff, binary.LittleEndian, p.Time); err != nil {
-		return b, err
-	}
-	if err := binary.Write(buff, binary.LittleEndian, p.Count); err != nil {
-		return b, err
-	}
-	if err := binary.Write(buff, binary.LittleEndian, p.Payload); err != nil {
-		return b, err
-	}
+	b := buf.Bytes()
 	return b, nil
 }
 
 func ParsePacket(b []byte, n int) (p Packet, err error) {
 	buf := bytes.NewBuffer(b)
-
-	e := binary.Read(buf, binary.LittleEndian, &p.Id)
+	metadata := struct {
+		Id    uint64
+		Time  int64
+		Count int32
+		Size  int32
+	}{}
+	e := binary.Read(buf, binary.LittleEndian, &metadata)
 	if e != nil {
-		err = Error("Failed to read id")
+		err = Error("Failed to read packet metadata")
 		return
 	}
-	e = binary.Read(buf, binary.LittleEndian, &p.Time)
-	if e != nil {
-		err = Error("Failed to read time")
-		return
-	}
-	e = binary.Read(buf, binary.LittleEndian, &p.Count)
-	if e != nil {
-		err = Error("Failed to read count")
-		return
-	}
+	p.Id = metadata.Id
+	p.Time = metadata.Time
+	p.Count = metadata.Count
+	p.Size = metadata.Size
 	// This may be an unecessary copy; there could be a way to do this
 	// using the same underlying array and slices...
-	p.Payload, e = ioutil.ReadAll(buf)
+	p.Payload = make([]byte, p.Size)
+	e = binary.Read(buf, binary.LittleEndian, p.Payload)
 	if e != nil {
 		err = Error("Failed to read packet payload")
 		return
+	}
+	if int32(len(p.Payload)) != p.Size {
+		err = Error(
+			fmt.Sprintf("Malformed packet: incorrect payload size; claimed %d bytes, saw %d bytes",
+				p.Size, len(p.Payload)))
 	}
 	return
 }

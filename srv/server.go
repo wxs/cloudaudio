@@ -69,19 +69,20 @@ func listenUDP(dataport int) {
 	}
 	log.Println("Listening for data on port:", dataport)
 	for {
-		b := make([]byte, 1024)
+		b := make([]byte, 2048)
 		n, addr, err := conn.ReadFrom(b)
 		if err != nil {
 			log.Fatal(err)
 		}
 		go func(b []byte, n int, addr net.Addr) {
 			log.Printf("Just saw a packet! %d bytes, address %v\n", n, addr)
-			log.Printf("%s\n", b[0:n])
+			log.Printf("%X%X%X%X%X%X\n", b[0], b[1], b[2], b[3], b[4], b[5])
 			packet, err := cloudaudio.ParsePacket(b, n)
 			if err != nil {
 				log.Println("Warning: malformed packet", err)
 				return
 			}
+			log.Println(packet)
 			ch := sessionChannels[packet.Id]
 			if ch == nil {
 				log.Println("Received packet for nonexistent session")
