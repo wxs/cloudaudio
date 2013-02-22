@@ -14,7 +14,6 @@ var dataport = flag.Int("pd", 2445, "The port to listen for UDP data packets")
 var signalport = flag.Int("ps", 2444, "The port to listen for bidirectional signalling")
 
 var store *cloudaudio.DefaultSessionStore
-var sessionChannels map[uint64]chan cloudaudio.Packet
 
 func main() {
 	log.Println("Starting server")
@@ -59,7 +58,17 @@ func configureHTTP() {
 		response.Header().Add("Content-type", "application/json")
 		response.Write(b)
 	})
+	http.Handle("/audio/", http.StripPrefix("/audio/", http.HandlerFunc(audioHandler)))
+}
 
+func audioHandler(response http.ResponseWriter, request *http.Request) {
+	path := request.URL.Path
+	var id uint64
+	fmt.Sscanf(path, "%d", &id)
+	_, ok := store.GetSession(id)
+	if !ok {
+		http.Error(response,"That stream does not exist",404)
+	}
 }
 
 func listenUDP(dataport int) {
@@ -83,12 +92,12 @@ func listenUDP(dataport int) {
 				return
 			}
 			log.Println(packet)
-			ch := sessionChannels[packet.Id]
-			if ch == nil {
+			sess, ok := store.GetSession(packet.Id)
+			if !ok {
 				log.Println("Received packet for nonexistent session")
 				return
 			}
-			ch <- packet
+			sess.Packets <- packet
 		}(b, n, addr)
 	}
 }

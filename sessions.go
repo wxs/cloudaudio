@@ -5,7 +5,32 @@ import (
 	"encoding/binary"
 	"log"
 	"sync"
+	"time"
 )
+
+type AudioInfo struct {
+	SampleRate     int
+	BytesPerSample int
+	Channels       int
+}
+
+type Session struct {
+	Id        uint64
+	AudioInfo AudioInfo
+	Packets   chan Packet
+
+	quit      chan bool
+	listeners []chan Packet
+}
+
+// This type is used to communicate the important
+// information about a session in the signalling server
+type SessionInfo struct {
+	IP        string
+	Port      int
+	Sessid    uint64
+	AudioInfo AudioInfo
+}
 
 type SessionStore interface {
 	GetSession(id uint64) Session
@@ -25,6 +50,31 @@ func (s *DefaultSessionStore) GetSession(id uint64) (session Session, ok bool) {
 	return
 }
 
+func sessionHandler(s Session) {
+	for {
+		// Loop forever waiting for new parsed packets to show up
+		select {
+		case pack := <-s.Packets:
+			for _, listener := range s.listeners {
+				go func() {
+					timeout := make(chan bool, 1)
+					go func() {
+						time.Sleep(1 * time.Second)
+						timeout <- true
+					}()
+					select {
+					case listener <- pack:
+					case <-timeout:
+					}
+				}()
+			}
+		case <-s.quit:
+			return
+
+		}
+	}
+}
+
 func (s *DefaultSessionStore) NewSession() Session {
 	id := genSessId()
 	_, ok := s.GetSession(id)
@@ -33,11 +83,11 @@ func (s *DefaultSessionStore) NewSession() Session {
 		_, ok = s.GetSession(id)
 	}
 	info := AudioInfo{44100, 16, 1}
-	r := Session{id, info}
+	r := Session{id, info, make(chan Packet), make(chan bool), make([]chan Packet, 10)}
+	go sessionHandler(r)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.sessions[id] = r
-
 	return r
 }
 
@@ -67,24 +117,4 @@ func genSessId() uint64 {
 		log.Fatal("genSessID:", err)
 	}
 	return r
-}
-
-type AudioInfo struct {
-	SampleRate     int
-	BytesPerSample int
-	Channels       int
-}
-
-type Session struct {
-	Id        uint64
-	AudioInfo AudioInfo
-}
-
-// This type is used to communicate the important
-// information about a session in the signalling server
-type SessionInfo struct {
-	IP        string
-	Port      int
-	Sessid    uint64
-	AudioInfo AudioInfo
 }
