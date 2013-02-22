@@ -14,8 +14,8 @@ func (e Error) Error() string {
 
 type Packet struct {
 	Id      uint64
-	Time    int64 //Nanosecond timestamp
-	Count   int32
+	Time    int64 // Nanosecond timestamp
+	Count   int64 // Number of samples in
 	Size    int32
 	Payload []byte
 }
@@ -45,7 +45,7 @@ func ParsePacket(b []byte, n int) (p Packet, err error) {
 	metadata := struct {
 		Id    uint64
 		Time  int64
-		Count int32
+		Count int64
 		Size  int32
 	}{}
 	e := binary.Read(buf, binary.LittleEndian, &metadata)

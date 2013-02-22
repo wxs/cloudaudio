@@ -41,7 +41,7 @@ func stream() {
 	dec.Decode(&s)
 	resp.Body.Close()
 	log.Println("Started stream with id: ", s.Sessid)
-	var count int32 = 0
+	var count int64 = 0
 	// Buffer half a second of fake audio at a time
 	buff := make([]byte, 1024)
 
@@ -62,7 +62,7 @@ func stream() {
 		if err != nil {
 			log.Fatal("Failed to create audio packet: ", err)
 		}
-		count++
+		count += int64(len(buff))
 		n, err := conn.Write(b)
 		if err != nil {
 			log.Fatal("Failed to send UDP packet: ", err)
