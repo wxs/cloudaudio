@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+<title>Listener</title>
+<script src="resources/jquery-1.9.1.min.js" type="text/javascript"></script>
+<script type="text/javascript">
+navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia ||
+navigator.mozGetUserMedia || navigator.msGetUserMedia;
+$(document).ready(function() {
+    loadSessions();
+    $(document).on("click", ".session", function() {
+        var id=$(this).attr("title")
+        activateSession(id);
+    });
+});
+
+function loadSessions() {
+    $("#sessions").empty()
+    $.getJSON("/sessions", function(sessions) {
+        sessions.forEach(function(sess) {
+            var li = $("<li></li>").appendTo("#sessions");
+            $("<a href='#'></a>").addClass("session").attr("title", sess).html(sess).appendTo(li);
+        });
+    });
+}
+
+function activateSession() {
+
+}
+</script>
+</head>
+
+<body>
+    <h1>Listener</h1>
+    <ul id="sessions">
+
+    </ul>
+    <a href="#" onclick="loadsessions();">Reload sessions</a>
+
+</body>
+
+</html>

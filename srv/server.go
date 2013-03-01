@@ -10,6 +10,10 @@ import (
 	"net/http"
 )
 
+const (
+	staticPath = "static/"
+)
+
 var dataport = flag.Int("pd", 2445, "The port to listen for UDP data packets")
 var signalport = flag.Int("ps", 2444, "The port to listen for bidirectional signalling")
 
@@ -51,13 +55,18 @@ func configureHTTP() {
 	http.HandleFunc("/sessions", func(response http.ResponseWriter, request *http.Request) {
 		response.Header().Add("Content-type", "application/json")
 		sessions := store.Sessions()
-		b, err := json.Marshal(sessions)
+		ids := make([]uint64, len(sessions))
+		for i, s := range sessions {
+			ids[i] = s.Id
+		}
+		b, err := json.Marshal(ids)
 		if err != nil {
 			http.Error(response, err.Error(), http.StatusInternalServerError)
 		}
 		response.Header().Add("Content-type", "application/json")
 		response.Write(b)
 	})
+	http.Handle("/static/", http.StripPrefix("/static", http.FileServer(http.Dir(staticPath))))
 	http.Handle("/audio/", http.StripPrefix("/audio/", http.HandlerFunc(audioHandler)))
 }
 
@@ -67,7 +76,7 @@ func audioHandler(response http.ResponseWriter, request *http.Request) {
 	fmt.Sscanf(path, "%d", &id)
 	_, ok := store.GetSession(id)
 	if !ok {
-		http.Error(response,"That stream does not exist",404)
+		http.Error(response, "That stream does not exist", 404)
 	}
 }
 
