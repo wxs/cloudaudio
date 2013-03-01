@@ -19,8 +19,9 @@ type Session struct {
 	AudioInfo AudioInfo
 	Packets   chan Packet
 
-	quit      chan bool
-	listeners []chan Packet
+	quit          chan bool
+	listeners     []chan Packet
+	listenerMutex sync.RWMutex
 }
 
 // This type is used to communicate the important
@@ -33,9 +34,9 @@ type SessionInfo struct {
 }
 
 type SessionStore interface {
-	GetSession(id uint64) Session
-	NewSession() Session
-	Sessions() []Session
+	GetSession(id uint64) *Session
+	NewSession() *Session
+	Sessions() []*Session
 }
 
 type DefaultSessionStore struct {
@@ -43,10 +44,11 @@ type DefaultSessionStore struct {
 	sessions map[uint64]Session
 }
 
-func (s *DefaultSessionStore) GetSession(id uint64) (session Session, ok bool) {
+func (s *DefaultSessionStore) GetSession(id uint64) (session *Session, ok bool) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	session, ok = s.sessions[id]
+	sess, ok := s.sessions[id]
+	session = &sess
 	return
 }
 
@@ -55,6 +57,7 @@ func sessionHandler(s Session) {
 		// Loop forever waiting for new parsed packets to show up
 		select {
 		case pack := <-s.Packets:
+			s.listenerMutex.RLock()
 			for _, listener := range s.listeners {
 				go func() {
 					timeout := make(chan bool, 1)
@@ -68,6 +71,7 @@ func sessionHandler(s Session) {
 					}
 				}()
 			}
+			s.listenerMutex.RUnlock()
 		case <-s.quit:
 			return
 
@@ -83,7 +87,12 @@ func (s *DefaultSessionStore) NewSession() Session {
 		_, ok = s.GetSession(id)
 	}
 	info := AudioInfo{44100, 16, 1}
-	r := Session{id, info, make(chan Packet), make(chan bool), make([]chan Packet, 10)}
+	var r Session
+	r.Id = id
+	r.AudioInfo = info
+	r.Packets = make(chan Packet)
+	r.quit = make(chan bool)
+	r.listeners = make([]chan Packet, 10)
 	go sessionHandler(r)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

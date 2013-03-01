@@ -4,8 +4,6 @@
 <title>Listener</title>
 <script src="resources/jquery-1.9.1.min.js" type="text/javascript"></script>
 <script type="text/javascript">
-navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia ||
-navigator.mozGetUserMedia || navigator.msGetUserMedia;
 $(document).ready(function() {
     loadSessions();
     $(document).on("click", ".session", function() {
@@ -23,9 +21,15 @@ function loadSessions() {
         });
     });
 }
-
-function activateSession() {
-
+var socket=null;
+function activateSession(id) {
+    if (socket!=null) {
+      socket.close();
+    }
+    var url = "ws://" + window.location.host + "/audio/" + id;
+    socket = new WebSocket(url);
+    var node = new AudioSourceNode()
+    var audioOutput = new Audio();
 }
 </script>
 </head>
