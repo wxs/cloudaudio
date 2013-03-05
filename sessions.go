@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+type SessId uint32
+
 type AudioInfo struct {
 	SampleRate     int
 	BytesPerSample int
@@ -15,7 +17,7 @@ type AudioInfo struct {
 }
 
 type Session struct {
-	Id        uint64
+	Id        SessId
 	AudioInfo AudioInfo
 	Packets   chan Packet
 
@@ -29,30 +31,36 @@ type Session struct {
 type SessionInfo struct {
 	IP        string
 	Port      int
-	Sessid    uint64
+	Sessid    SessId
 	AudioInfo AudioInfo
 }
 
 type SessionStore interface {
-	GetSession(id uint64) *Session
+	GetSession(id SessId) *Session
 	NewSession() *Session
 	Sessions() []*Session
 }
 
 type DefaultSessionStore struct {
 	mutex    sync.RWMutex
-	sessions map[uint64]Session
+	sessions map[SessId]*Session
 }
 
-func (s *DefaultSessionStore) GetSession(id uint64) (session *Session, ok bool) {
+func (s *DefaultSessionStore) GetSession(id SessId) (session *Session, ok bool) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	sess, ok := s.sessions[id]
-	session = &sess
+	session, ok = s.sessions[id]
 	return
 }
 
-func sessionHandler(s Session) {
+func (s *Session) AddListener(c chan Packet) {
+	s.listenerMutex.Lock()
+	defer s.listenerMutex.Unlock()
+	s.listeners = append(s.listeners, c)
+	log.Println("Added a listener, new number: ", len(s.listeners))
+}
+
+func sessionHandler(s *Session) {
 	for {
 		// Loop forever waiting for new parsed packets to show up
 		select {
@@ -92,17 +100,17 @@ func (s *DefaultSessionStore) NewSession() Session {
 	r.AudioInfo = info
 	r.Packets = make(chan Packet)
 	r.quit = make(chan bool)
-	r.listeners = make([]chan Packet, 10)
-	go sessionHandler(r)
+	r.listeners = make([]chan Packet, 0, 10)
+	go sessionHandler(&r)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	s.sessions[id] = r
+	s.sessions[id] = &r
 	return r
 }
 
-func (s *DefaultSessionStore) Sessions() []Session {
+func (s *DefaultSessionStore) Sessions() []*Session {
 
-	r := make([]Session, len(s.sessions))
+	r := make([]*Session, len(s.sessions))
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	i := 0
@@ -115,12 +123,12 @@ func (s *DefaultSessionStore) Sessions() []Session {
 
 func NewDefaultSessionStore() *DefaultSessionStore {
 	r := new(DefaultSessionStore)
-	r.sessions = make(map[uint64]Session)
+	r.sessions = make(map[SessId]*Session)
 	return r
 }
 
-func genSessId() uint64 {
-	var r uint64
+func genSessId() SessId {
+	var r SessId
 	err := binary.Read(rand.Reader, binary.LittleEndian, &r)
 	if err != nil {
 		log.Fatal("genSessID:", err)

@@ -16,20 +16,17 @@ function loadSessions() {
     $("#sessions").empty()
     $.getJSON("/sessions", function(sessions) {
         sessions.forEach(function(sess) {
+            console.log(sess);
             var li = $("<li></li>").appendTo("#sessions");
             $("<a href='#'></a>").addClass("session").attr("title", sess).html(sess).appendTo(li);
         });
     });
 }
-var socket=null;
 function activateSession(id) {
-    if (socket!=null) {
-      socket.close();
-    }
-    var url = "ws://" + window.location.host + "/audio/" + id;
-    socket = new WebSocket(url);
-    var node = new AudioSourceNode()
-    var audioOutput = new Audio();
+    var audio = $("<audio>");
+    audio.attr("src", "/audio/"+id).attr("type", "audio/mpeg");
+    audio.attr("autoplay","true")
+    audio.appendTo('body')
 }
 </script>
 </head>
@@ -39,7 +36,7 @@ function activateSession(id) {
     <ul id="sessions">
 
     </ul>
-    <a href="#" onclick="loadsessions();">Reload sessions</a>
+    <a href="#" onclick="loadSessions();">Reload sessions</a>
 
 </body>
 

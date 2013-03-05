@@ -13,7 +13,7 @@ func (e Error) Error() string {
 }
 
 type Packet struct {
-	Id      uint64
+	Id      SessId
 	Time    int64 // Nanosecond timestamp
 	Count   int64 // Number of samples in
 	Size    int32
@@ -43,7 +43,7 @@ func (p Packet) Bytes() ([]byte, error) {
 func ParsePacket(b []byte, n int) (p Packet, err error) {
 	buf := bytes.NewBuffer(b)
 	metadata := struct {
-		Id    uint64
+		Id    SessId
 		Time  int64
 		Count int64
 		Size  int32
