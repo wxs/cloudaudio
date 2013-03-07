@@ -92,12 +92,8 @@ func audioHandler(response http.ResponseWriter, request *http.Request) {
 	// spawn a process transcoding the stream
 	// In reality, of course, having multiple processes serving up the
 	// same stream to each client is stupid.
-	//cmd := exec.Command("vlc",
-	//"--demux=rawaud", "--rawaud-channels=1", "--rawaud-samplerate=44100", "--rawaud-fourcc=s16l",
-	//"-", "--sout" , "'#transcode{acodec='mpga'}#standard{access=http,mux='ts'}
 	cmd := exec.Command("ffmpeg", "-v", "verbose", "-f", "u16le", "-ar", "44100", "-ac", "1", "-i", "-",
 		"-f", "mp3", "-")
-	//cmd := exec.Command("oggenc", "-r", "-C", "1", "-")
 
 	audioIn, err := cmd.StdinPipe()
 	if err != nil {
