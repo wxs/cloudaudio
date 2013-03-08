@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
-	"math/rand"
 	"net"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -21,17 +22,26 @@ func main() {
 	log.Printf("Starting up %d mock streams\n", *nstreams)
 	quit := make(chan int)
 	for i := 0; i < *nstreams; i++ {
-		go func() {
-			log.Println("Starting stream ", i)
-			stream()
+		go func(id int) {
+			log.Println("Starting stream ", id)
+			stream(id)
 			quit <- 1
-		}()
+		}(i)
 	}
 	<-quit
 	log.Println("Abnormal mock stream termination")
 }
 
-func stream() {
+func stream(streamid int) {
+	fname := fmt.Sprintf("%d.raw", streamid)
+	file, err := os.Open(fname)
+	if err != nil {
+		log.Fatal("Could not open file", fname)
+	}
+	bytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Fatal("Error opening the file")
+	}
 	connecturl := fmt.Sprintf("%s/connect", *signalserver)
 	resp, err := http.Get(connecturl)
 	if err != nil {
@@ -58,10 +68,12 @@ func stream() {
 	} else {
 		tick = time.Tick(time.Nanosecond * time.Duration(buffNanos))
 	}
+	byteOff := 0
 	for now := range tick {
 		nanos := now.UnixNano()
 		for i := range buff {
-			buff[i] = byte(rand.Uint32() & 0xff)
+			buff[i] = bytes[byteOff]
+			byteOff = (byteOff + 1) % len(bytes)
 		}
 		packet := cloudaudio.Packet{s.Sessid, nanos, count, int32(len(buff)), buff}
 		b, err := packet.Bytes()
