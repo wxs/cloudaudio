@@ -14,6 +14,7 @@ import (
 
 var nstreams = flag.Int("n", 1, "The number of concurrent streams")
 var signalserver = flag.String("srv", "http://localhost:2444", "The server to connect to for signalling")
+var slow = flag.Bool("s", false, "Run slowly?")
 
 func main() {
 	flag.Parse()
@@ -51,7 +52,12 @@ func stream() {
 		log.Fatal("Could not connect to UDP server:", err)
 	}
 	buffNanos := 1e9 / s.AudioInfo.SampleRate / s.AudioInfo.BytesPerSample * len(buff)
-	tick := time.Tick(time.Nanosecond * time.Duration(buffNanos))
+	var tick <-chan time.Time
+	if *slow {
+		tick = time.Tick(time.Second)
+	} else {
+		tick = time.Tick(time.Nanosecond * time.Duration(buffNanos))
+	}
 	for now := range tick {
 		nanos := now.UnixNano()
 		for i := range buff {

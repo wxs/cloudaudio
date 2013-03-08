@@ -79,21 +79,19 @@ func audioHandler(response http.ResponseWriter, request *http.Request) {
 	var id cloudaudio.SessId
 	fmt.Sscanf(path, "%d", &id)
 	sess, ok := store.GetSession(id)
-	log.Println(sess)
 	if !ok {
 		http.Error(response, fmt.Sprintf("That stream: %d does not exist", id), 404)
 		return
 	}
-	packets := make(chan cloudaudio.Packet, 20)
-	sess.AddListener(packets)
+	r := sess.Reader(10)
 
 	response.Header().Add("Content-type", "audio/mpeg")
 
 	// spawn a process transcoding the stream
 	// In reality, of course, having multiple processes serving up the
 	// same stream to each client is stupid.
-	cmd := exec.Command("ffmpeg", "-v", "verbose", "-f", "u16le", "-ar", "44100", "-ac", "1", "-i", "-",
-		"-f", "mp3", "-")
+	cmd := exec.Command("ffmpeg", "-f", "u16le", "-ar", "44100", "-ac", "1", "-i", "-",
+		"-f", "mp3", "-ac", "1", "-")
 
 	audioIn, err := cmd.StdinPipe()
 	if err != nil {
@@ -112,28 +110,29 @@ func audioHandler(response http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		log.Println("Failed to start ffmpeg command, error: ", err)
 	}
-	log.Println("Running the command")
+	// TODO: Make sure we close these readers properly
 	go func() {
-		for {
-			packet := <-packets
-			audioIn.Write(packet.Payload)
-			if err != nil {
-				log.Println("Error in the audio streaming handler")
-				return
-			}
+		log.Println("Starting copy from reader to ffmpeg")
+		amount, err := io.Copy(audioIn, r)
+		if err != nil {
+			log.Println("io copy from session reader error", err)
 		}
+		log.Printf("Done copying from reader: %d bytes\n", amount)
+		audioIn.Close()
 	}()
 	go func() {
+		log.Println("Starting copy from ffmpeg to http")
 		amount, err := io.Copy(response, audioOut)
 		if err != nil {
 			log.Println("io copy terminated with an error", err)
 		}
-		log.Printf("Done copying audio data: %d bytes\n", amount)
+		log.Printf("Done copying out of ffmpeg: %d bytes\n", amount)
 	}()
 	err = cmd.Wait()
 	if err != nil {
 		log.Println("ffmpeg command terminated incorrectly", err)
 	}
+	log.Println("audioHandler terminating")
 }
 
 func listenUDP(dataport int) {
@@ -143,7 +142,7 @@ func listenUDP(dataport int) {
 	}
 	log.Println("Listening for data on port:", dataport)
 	for {
-		b := make([]byte, 2048)
+		b := make([]byte, 5000)
 		n, addr, err := conn.ReadFrom(b)
 		if err != nil {
 			log.Fatal(err)
